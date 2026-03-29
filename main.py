@@ -4,12 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2.extras
 from agent import ask, setup_db
+from insurance.router import router as insurance_router
+from insurance.auth import init_users_table
 
 db = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db["conn"] = setup_db()  # create the in-memory DB once on startup
+    db["conn"] = setup_db()
+    init_users_table()  # create insurance_users table if not exists
     yield
     db["conn"].close()
 
@@ -17,10 +20,12 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(insurance_router)
 
 class QueryRequest(BaseModel):
     question: str

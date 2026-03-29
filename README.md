@@ -1,27 +1,35 @@
 # DataSense
 
-An agentic BI copilot that translates natural language questions into SQL, executes them against a PostgreSQL database, and returns plain English answers with chart-ready data.
+An agentic BI copilot + home insurance assistant. Ask data questions in plain English, get SQL-powered answers — or use the insurance assistant to chat about home coverage and generate a certificate.
 
 ## Demo
 
-Ask: *"Which customer spent the most money?"*
-
+**DataSense tab** — Ask: *"Which customer spent the most money?"*
 Returns: *"Carol spent the most, totalling $2,029.97"* — along with the raw data and the generated SQL.
+
+**Insurance tab** — Ask: *"What does dwelling coverage include?"*
+Returns an answer grounded in your uploaded policy documents, streamed token by token.
 
 ## Architecture
 
 ```
-User (React UI)
-    ↓ POST /query
-FastAPI backend
-    ↓
-Gemini 2.5 Flash (tool use)
-    ↓ calls run_sql()
-PostgreSQL
-    ↓ results
-Gemini 2.5 Flash (natural language answer)
-    ↓
-User
+┌─────────────────────────────────────────────┐
+│                  React + Vite               │
+│   DataSense tab          Insurance tab      │
+│   (SQL queries)    (RAG chat + cert form)   │
+└──────────────┬──────────────────┬───────────┘
+               │ POST /query      │ /insurance/*
+┌──────────────▼──────────────────▼───────────┐
+│              FastAPI backend                │
+│  agent.py (tool use)   insurance/router.py  │
+└──────────────┬──────────────────┬───────────┘
+               │                  │
+    ┌──────────▼───┐    ┌─────────▼──────────┐
+    │  PostgreSQL  │    │  ChromaDB (on disk) │
+    │  (Docker)    │    │  890 doc chunks     │
+    └──────────────┘    └────────────────────┘
+               │                  │
+         Gemini 2.5 Flash ────────┘
 ```
 
 ## Stack
@@ -29,34 +37,48 @@ User
 | Layer | Technology |
 |---|---|
 | LLM | Google Gemini 2.5 Flash |
+| Embeddings | Google Gemini Embedding 001 |
 | Backend | Python + FastAPI |
-| Database | PostgreSQL (Docker) |
+| Vector DB | ChromaDB (persistent, on disk) |
+| Database | PostgreSQL 16 (Docker) |
 | Frontend | React + Vite |
-| Observability | Query logs table (question, SQL, tokens, timestamp) |
-| Evals | Result-based test suite |
+| Auth | JWT (python-jose) + sha256_crypt |
 
 ## Features
 
-- **Natural language to SQL** — Gemini generates PostgreSQL queries from plain English
-- **Tool use agent** — two-turn conversation loop: generate SQL → run it → answer in English
-- **Dynamic schema** — reads live table structure from `information_schema`, no hardcoding
-- **Observability** — every query logged with generated SQL, answer, and token usage
-- **Error handling** — off-topic questions rejected gracefully
-- **Evals** — result-based test suite to validate SQL correctness
+### DataSense (Text-to-SQL)
+- Natural language → PostgreSQL via Gemini tool-use agent
+- Dynamic schema reading from `information_schema`
+- Every query logged with SQL, answer, and token usage
+- Result-based eval suite
+
+### Insurance Assistant
+- **RAG chatbot** — hybrid BM25 + MMR vector search over uploaded home insurance PDFs
+- **Streaming responses** — tokens streamed via SSE as they're generated
+- **JWT auth** — register/login, users persisted in PostgreSQL
+- **4-step certification form** — Property → Coverage → Risk → Owner Info
+- **Autofill from chat** — Gemini extracts form field values from your conversation
+- **PDF certificate** — generated with ReportLab and downloaded in the browser
 
 ## Project Structure
 
 ```
 datasense/
-├── main.py          # FastAPI app — POST /query, GET /logs
-├── agent.py         # Gemini tool-use agent + DB setup
-├── tool_use.py      # Phase 1 tool use demo
+├── main.py                  # FastAPI entry point
+├── agent.py                 # Gemini tool-use agent (text-to-SQL)
+├── insurance/
+│   ├── auth.py              # JWT auth + PostgreSQL user store (connection pool)
+│   ├── rag.py               # Hybrid retriever + streaming chat
+│   ├── certify.py           # Certification form schema + PDF generation
+│   ├── router.py            # FastAPI router (/insurance/*)
+│   ├── ingest.py            # PDF ingestion into ChromaDB
+│   └── docs/                # Home insurance PDFs
 ├── evals/
-│   └── run_evals.py # Result-based eval suite
-├── frontend/        # React + Vite UI
+│   └── run_evals.py         # SQL eval suite
+├── frontend/
 │   └── src/
-│       ├── App.jsx
-│       └── App.css
+│       ├── App.jsx          # Tab nav (DataSense | Insurance)
+│       └── insurance/       # Insurance UI components
 └── pyproject.toml
 ```
 
@@ -75,22 +97,26 @@ docker run -d --name datasense-db \
   -e POSTGRES_DB=datasense \
   -p 5432:5432 postgres:16
 
-# Set environment variables
+# Environment variables
 cp .env.example .env
-# Add your GOOGLE_API_KEY from https://aistudio.google.com/apikey
+# Add GOOGLE_API_KEY from https://aistudio.google.com/apikey
+# Add JWT_SECRET (any long random string)
 
-# Install backend deps and start API
+# Ingest insurance documents into ChromaDB
+uv run python insurance/ingest.py
+
+# Start backend
 uv run uvicorn main:app --reload
 
-# Install frontend deps and start UI
+# Start frontend
 cd frontend && npm install && npm run dev
 ```
 
-Open `http://localhost:5173` and start asking questions.
+Open `http://localhost:5173`.
 
 ## Phases
 
 - [x] Phase 1: LLM + tool use basics
 - [x] Phase 2: Text-to-SQL agent + FastAPI + React UI
-- [ ] Phase 3: Evals dashboard + observability + Azure deploy
-- [ ] Phase 4: Design doc + portfolio polish
+- [x] Phase 3: Insurance RAG chatbot + certification flow + JWT auth
+- [ ] Phase 4: Azure deploy + design doc + portfolio polish

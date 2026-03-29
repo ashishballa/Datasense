@@ -14,3 +14,9 @@ wheels/
 
 # Frontend
 frontend/node_modules
+
+# ChromaDB (generated — run insurance/ingest.py to rebuild)
+insurance/chroma_db/
+
+# Windows metadata
+*:Zone.Identifier

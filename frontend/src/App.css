@@ -1,5 +1,182 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── App nav ── */
+.app-nav {
+  display: flex;
+  gap: 4px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #222;
+  background: #0f0f0f;
+}
+.app-nav button {
+  padding: 8px 18px;
+  background: transparent;
+  color: #888;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.app-nav button.active { color: #e8e8e8; border-color: #444; background: #1a1a1a; }
+.app-nav button:hover:not(.active) { color: #ccc; }
+
+/* ── Insurance layout ── */
+.ins-app { display: flex; flex-direction: column; height: calc(100vh - 53px); }
+
+.ins-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid #222;
+  background: #111;
+}
+.ins-topbar-title { font-weight: 600; color: #e8e8e8; }
+.ins-topbar-user { display: flex; align-items: center; gap: 12px; color: #888; font-size: 0.9rem; }
+.ins-logout {
+  padding: 4px 12px;
+  background: transparent;
+  color: #888;
+  border: 1px solid #333;
+  border-radius: 5px;
+  font-size: 0.8rem;
+}
+.ins-logout:hover { color: #e8e8e8; border-color: #555; }
+
+.ins-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Login ── */
+.ins-login {
+  max-width: 400px;
+  margin: 80px auto;
+  padding: 0 24px;
+}
+.ins-login h2 { font-size: 1.6rem; margin-bottom: 6px; }
+.ins-login-sub { color: #888; margin-bottom: 24px; }
+.ins-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+.ins-tabs button {
+  flex: 1;
+  padding: 8px;
+  background: #1a1a1a;
+  color: #888;
+  border: 1px solid #333;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+.ins-tabs button.active { color: #e8e8e8; border-color: #6366f1; background: #1e1e35; }
+.ins-login-form { display: flex; flex-direction: column; gap: 12px; }
+.ins-error { color: #f87171; font-size: 0.9rem; }
+
+/* ── Chat ── */
+.ins-chat {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #222;
+  overflow: hidden;
+}
+.ins-chat-header {
+  padding: 14px 20px;
+  font-weight: 600;
+  border-bottom: 1px solid #222;
+  background: #111;
+  color: #aaa;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ins-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ins-msg { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
+.ins-msg-user { align-self: flex-end; align-items: flex-end; }
+.ins-msg-assistant { align-self: flex-start; }
+.ins-msg-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.4px; }
+.ins-msg p {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.ins-msg-user p { background: #1e1e35; color: #c7d2fe; }
+.ins-msg-assistant p { background: #1a1a1a; color: #e8e8e8; }
+.ins-typing { color: #555 !important; }
+.ins-chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #222; }
+.ins-chat-input input { flex: 1; }
+.ins-chat-input button { padding: 12px 20px; }
+
+/* ── Certify ── */
+.ins-certify {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 20px;
+  gap: 16px;
+}
+.ins-certify-loading { padding: 24px; color: #555; }
+.ins-certify-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ins-certify-header h3 { font-size: 1rem; font-weight: 600; }
+.ins-autofill-btn {
+  padding: 7px 14px;
+  background: #1a2e1a;
+  color: #86efac;
+  border: 1px solid #166534;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.ins-autofill-btn:hover:not(:disabled) { background: #166534; }
+.ins-autofill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ins-steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.ins-step-pill {
+  padding: 5px 12px;
+  background: #1a1a1a;
+  color: #555;
+  border: 1px solid #333;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.ins-step-pill.active { color: #e8e8e8; border-color: #6366f1; background: #1e1e35; }
+.ins-step-pill.done { color: #86efac; border-color: #166534; }
+
+.ins-form-step { display: flex; flex-direction: column; gap: 12px; }
+.ins-form-step h4 { font-size: 0.9rem; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
+.ins-field { display: flex; flex-direction: column; gap: 5px; }
+.ins-field label { font-size: 0.82rem; color: #888; }
+.ins-field input, .ins-field select {
+  padding: 9px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #e8e8e8;
+  font-size: 0.9rem;
+}
+.ins-field select option { background: #1a1a1a; }
+.ins-bool { display: flex; gap: 16px; }
+.ins-radio { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; }
+.ins-radio input { width: auto; }
+
+.ins-certify-nav { display: flex; justify-content: space-between; margin-top: 8px; }
+.ins-btn-primary { padding: 10px 24px; background: #6366f1; color: white; border: none; border-radius: 7px; font-size: 0.9rem; }
+.ins-btn-primary:hover:not(:disabled) { background: #5254cc; }
+.ins-btn-secondary { padding: 10px 20px; background: transparent; color: #888; border: 1px solid #333; border-radius: 7px; font-size: 0.9rem; }
+.ins-btn-secondary:hover:not(:disabled) { color: #e8e8e8; border-color: #555; }
+.ins-btn-secondary:disabled, .ins-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.ins-success { color: #86efac; font-size: 0.9rem; text-align: center; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #0f0f0f;

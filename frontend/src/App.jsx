@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import InsuranceApp from './insurance/InsuranceApp'
 
-export default function App() {
+function DataSense() {
   const [question, setQuestion] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -12,7 +13,6 @@ export default function App() {
     setLoading(true)
     setError(null)
     setResult(null)
-
     try {
       const res = await fetch('http://localhost:8000/query', {
         method: 'POST',
@@ -37,7 +37,6 @@ export default function App() {
     <div className="container">
       <h1>DataSense</h1>
       <p className="subtitle">Ask questions about your data in plain English</p>
-
       <form onSubmit={handleSubmit}>
         <div className="input-row">
           <input
@@ -51,28 +50,20 @@ export default function App() {
           </button>
         </div>
       </form>
-
       {error && <p className="error">{error}</p>}
-
       {result && (
         <div className="result">
           <p className="answer">{result.answer}</p>
-
           {columns.length > 0 && (
             <table>
-              <thead>
-                <tr>{columns.map(c => <th key={c}>{c}</th>)}</tr>
-              </thead>
+              <thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
               <tbody>
                 {result.rows.map((row, i) => (
-                  <tr key={i}>
-                    {columns.map(c => <td key={c}>{row[c]}</td>)}
-                  </tr>
+                  <tr key={i}>{columns.map(c => <td key={c}>{row[c]}</td>)}</tr>
                 ))}
               </tbody>
             </table>
           )}
-
           <details>
             <summary>SQL</summary>
             <pre>{result.sql}</pre>
@@ -80,5 +71,23 @@ export default function App() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function App() {
+  const [tab, setTab] = useState('datasense')
+
+  return (
+    <>
+      <nav className="app-nav">
+        <button className={tab === 'datasense' ? 'active' : ''} onClick={() => setTab('datasense')}>
+          DataSense
+        </button>
+        <button className={tab === 'insurance' ? 'active' : ''} onClick={() => setTab('insurance')}>
+          Insurance
+        </button>
+      </nav>
+      {tab === 'datasense' ? <DataSense /> : <InsuranceApp />}
+    </>
   )
 }
