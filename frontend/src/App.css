@@ -1,26 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── App nav ── */
-.app-nav {
-  display: flex;
-  gap: 4px;
-  padding: 12px 24px;
-  border-bottom: 1px solid #222;
-  background: #0f0f0f;
-}
-.app-nav button {
-  padding: 8px 18px;
-  background: transparent;
-  color: #888;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-.app-nav button.active { color: #e8e8e8; border-color: #444; background: #1a1a1a; }
-.app-nav button:hover:not(.active) { color: #ccc; }
-
-/* ── Insurance layout ── */
-.ins-app { display: flex; flex-direction: column; height: calc(100vh - 53px); }
+/* ── Insurance layout ──*/
+.ins-app { display: flex; flex-direction: column; height: 100vh; }
 
 .ins-topbar {
   display: flex;
