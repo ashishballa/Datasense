@@ -6,13 +6,15 @@ import psycopg2.extras
 from agent import ask, setup_db
 from insurance.router import router as insurance_router
 from insurance.auth import init_users_table
+from insurance.store import init_tables as init_store_tables
 
 db = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db["conn"] = setup_db()
-    init_users_table()  # create insurance_users table if not exists
+    init_users_table()
+    init_store_tables()  # sessions, messages, certificates tables
     yield
     db["conn"].close()
 

@@ -62,11 +62,15 @@ def hybrid_search(question: str) -> list[Document]:
             break
     return merged
 
-# Per-session history: session_id -> list of message dicts
-_sessions: dict[str, list[dict]] = {}
+from .store import save_message, load_messages, touch_session
+
+# In-memory cache to avoid re-querying DB on every token during streaming
+_session_cache: dict[str, list[dict]] = {}
 
 def get_history(session_id: str) -> list[dict]:
-    return _sessions.setdefault(session_id, [])
+    if session_id not in _session_cache:
+        _session_cache[session_id] = load_messages(session_id)
+    return _session_cache[session_id]
 
 def chat(question: str, session_id: str) -> dict:
     history = get_history(session_id)
@@ -94,6 +98,9 @@ def chat(question: str, session_id: str) -> dict:
 
     history.append({"role": "user", "content": question})
     history.append({"role": "assistant", "content": answer})
+    save_message(session_id, "user", question)
+    save_message(session_id, "assistant", answer)
+    touch_session(session_id)
 
     return {"answer": answer, "session_id": session_id}
 
@@ -126,11 +133,12 @@ def chat_stream(question: str, session_id: str):
             full_answer.append(token)
             yield token
 
+    answer = "".join(full_answer)
     history.append({"role": "user", "content": question})
-    history.append({"role": "assistant", "content": "".join(full_answer)})
-
-def get_session_history(session_id: str) -> list[dict]:
-    return _sessions.get(session_id, [])
+    history.append({"role": "assistant", "content": answer})
+    save_message(session_id, "user", question)
+    save_message(session_id, "assistant", answer)
+    touch_session(session_id)
 
 def clear_session(session_id: str):
-    _sessions.pop(session_id, None)
+    _session_cache.pop(session_id, None)
