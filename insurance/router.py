@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from .auth import register_user, authenticate_user, create_access_token, get_current_user
+from .auth import register_user, authenticate_user, create_access_token, get_current_user, username_exists
 from .rag import chat, chat_stream, clear_session
 from .certify import get_steps, autofill_from_chat, generate_certificate
 from .store import create_session, get_user_sessions, log_certificate, get_stats, log_event
@@ -15,6 +15,10 @@ router = APIRouter(prefix="/insurance", tags=["insurance"])
 class RegisterRequest(BaseModel):
     username: str
     password: str
+
+@router.get("/auth/check-username/{username}")
+def check_username(username: str):
+    return {"available": not username_exists(username)}
 
 @router.post("/auth/register")
 def register(req: RegisterRequest):

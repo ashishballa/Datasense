@@ -44,7 +44,31 @@ def init_users_table():
                 )
             """)
 
+def validate_password(password: str):
+    errors = []
+    if len(password) < 8:
+        errors.append("at least 8 characters")
+    if not any(c.isupper() for c in password):
+        errors.append("one uppercase letter")
+    if not any(c.isdigit() for c in password):
+        errors.append("one number")
+    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
+        errors.append("one special character")
+    if errors:
+        raise HTTPException(status_code=400, detail="Password must contain: " + ", ".join(errors))
+
+def username_exists(username: str) -> bool:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM insurance_users WHERE username = %s", (username,))
+        return cur.fetchone() is not None
+
 def register_user(username: str, password: str):
+    if len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if not username.replace("_", "").replace("-", "").isalnum():
+        raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, - and _")
+    validate_password(password)
     try:
         with get_conn() as conn:
             with conn:

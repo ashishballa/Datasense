@@ -80,6 +80,18 @@
 .ins-tabs button.active { color: #e8e8e8; border-color: #6366f1; background: #1e1e35; }
 .ins-login-form { display: flex; flex-direction: column; gap: 12px; }
 .ins-error { color: #f87171; font-size: 0.9rem; }
+.ins-input-wrap { position: relative; display: flex; align-items: center; }
+.ins-input-wrap input { flex: 1; }
+.ins-username-status { position: absolute; right: 12px; font-size: 0.78rem; pointer-events: none; }
+.ins-username-status.available { color: #86efac; }
+.ins-username-status.taken { color: #f87171; }
+.ins-username-status.checking { color: #888; }
+.ins-show-pwd { position: absolute; right: 12px; background: none; border: none; color: #666; font-size: 0.78rem; padding: 0; cursor: pointer; }
+.ins-show-pwd:hover { color: #aaa; }
+.ins-pwd-rules { display: flex; flex-wrap: wrap; gap: 6px; }
+.ins-pwd-rule { font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; }
+.ins-pwd-rule.pass { color: #86efac; background: #0f2a1a; }
+.ins-pwd-rule.fail { color: #888; background: #1a1a1a; }
 
 /* ── Chat ── */
 .ins-chat {
