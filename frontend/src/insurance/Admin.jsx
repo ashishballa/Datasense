@@ -33,7 +33,7 @@ export default function Admin({ token, onBack }) {
   if (error) return <div className="adm-wrap"><p className="ins-error">{error}</p></div>
   if (!stats) return <div className="adm-wrap"><p className="adm-loading">Loading…</p></div>
 
-  const { totals, users, daily_questions, activity } = stats
+  const { totals, users, daily_questions = [], activity = [] } = stats
   const maxQ = Math.max(...daily_questions.map(d => d.questions), 1)
 
   return (
