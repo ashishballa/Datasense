@@ -1,17 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { login, register } from './api'
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 export default function Login({ onLogin }) {
+  // ping the backend on mount so Render wakes up before the user submits
+  useEffect(() => { fetch(`${API}/`).catch(() => {}) }, [])
   const [mode, setMode] = useState('login') // 'login' | 'register'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [slow, setSlow] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
+    setSlow(false)
     setLoading(true)
+    const slowTimer = setTimeout(() => setSlow(true), 5000)
     try {
       if (mode === 'register') {
         await register(username, password)
@@ -21,6 +28,8 @@ export default function Login({ onLogin }) {
     } catch (err) {
       setError(err.message)
     } finally {
+      clearTimeout(slowTimer)
+      setSlow(false)
       setLoading(false)
     }
   }
@@ -50,7 +59,7 @@ export default function Login({ onLogin }) {
         />
         {error && <p className="ins-error">{error}</p>}
         <button type="submit" disabled={loading || !username || !password}>
-          {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account & Sign In'}
+          {loading ? (slow ? 'Server waking up… (~30s)' : 'Please wait…') : mode === 'login' ? 'Sign In' : 'Create Account & Sign In'}
         </button>
       </form>
     </div>
