@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: datasense-api
+    runtime: python
+    buildCommand: pip install uv && uv sync
+    startCommand: uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+    autoDeploy: true

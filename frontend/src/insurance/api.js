@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8000/insurance'
+const BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/insurance`
 
 function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
