@@ -34,8 +34,9 @@ export default function Login({ onLogin }) {
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`${API}/insurance/auth/check-username/${encodeURIComponent(username)}`)
+        if (!res.ok) { setUsernameStatus(null); return }
         const data = await res.json()
-        setUsernameStatus(data.available ? 'available' : 'taken')
+        setUsernameStatus(data.available === true ? 'available' : 'taken')
       } catch {
         setUsernameStatus(null)
       }
