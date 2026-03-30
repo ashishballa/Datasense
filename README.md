@@ -1,64 +1,73 @@
-# DataSense
+# DataSense — AI Home Insurance Assistant
 
-An agentic BI copilot + home insurance assistant. Ask data questions in plain English, get SQL-powered answers — or use the insurance assistant to chat about home coverage and generate a certificate.
+A production RAG chatbot built on real home insurance policy documents. Chat with an AI assistant, auto-fill a 4-step certification form from the conversation, and download a PDF certificate.
 
-## Demo
+**Live demo → [datasense-jade.vercel.app](https://datasense-jade.vercel.app)**
 
-**DataSense tab** — Ask: *"Which customer spent the most money?"*
-Returns: *"Carol spent the most, totalling $2,029.97"* — along with the raw data and the generated SQL.
+---
 
-**Insurance tab** — Ask: *"What does dwelling coverage include?"*
-Returns an answer grounded in your uploaded policy documents, streamed token by token.
+## What it does
+
+- **Chat** — Ask anything about home insurance. Answers grounded in real policy documents, streamed token by token.
+- **Autofill** — Click "Autofill from Chat" and Gemini extracts property address, coverage amounts, owner details from your conversation into the form.
+- **Certification form** — 4-step dynamic form: Property → Coverage → Risk → Owner Info.
+- **PDF certificate** — Generate and download a formatted certificate from completed form data.
+- **Admin dashboard** — Live activity feed, stat cards, 7-day chart, user table. Auto-refreshes every 30s.
+- **Auth** — JWT login/register, users persisted in PostgreSQL.
+
+---
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
-│                  React + Vite               │
-│   DataSense tab          Insurance tab      │
-│   (SQL queries)    (RAG chat + cert form)   │
-└──────────────┬──────────────────┬───────────┘
-               │ POST /query      │ /insurance/*
-┌──────────────▼──────────────────▼───────────┐
-│              FastAPI backend                │
-│  agent.py (tool use)   insurance/router.py  │
-└──────────────┬──────────────────┬───────────┘
-               │                  │
-    ┌──────────▼───┐    ┌─────────▼──────────┐
-    │  PostgreSQL  │    │  ChromaDB (on disk) │
-    │  (Docker)    │    │  890 doc chunks     │
-    └──────────────┘    └────────────────────┘
-               │                  │
-         Gemini 2.5 Flash ────────┘
+│           React + Vite (Vercel)             │
+│   Login → Chat → Certify → Admin            │
+└──────────────────────┬──────────────────────┘
+                       │ /insurance/*
+┌──────────────────────▼──────────────────────┐
+│           FastAPI backend (Render)          │
+│  auth.py  rag.py  certify.py  store.py      │
+└──────┬───────────────────────┬──────────────┘
+       │                       │
+┌──────▼──────┐    ┌───────────▼────────────┐
+│  Supabase   │    │  ChromaDB (on disk)    │
+│ PostgreSQL  │    │  890 chunks, 4 PDFs    │
+└─────────────┘    └────────────────────────┘
+                            │
+                   Gemini 2.5 Flash ──────────
 ```
+
+---
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | LLM | Google Gemini 2.5 Flash |
-| Embeddings | Google Gemini Embedding 001 |
-| Backend | Python + FastAPI |
+| Embeddings | Gemini Embedding 001 |
 | Vector DB | ChromaDB (persistent, on disk) |
-| Database | PostgreSQL 16 (Docker) |
-| Frontend | React + Vite |
+| Search | Hybrid BM25 + MMR vector search |
+| Backend | Python + FastAPI |
+| Database | PostgreSQL (Supabase) |
 | Auth | JWT (python-jose) + sha256_crypt |
+| PDF | ReportLab |
+| Frontend | React + Vite |
+| Deployment | Render (API) + Vercel (UI) |
 
-## Features
+---
 
-### DataSense (Text-to-SQL)
-- Natural language → PostgreSQL via Gemini tool-use agent
-- Dynamic schema reading from `information_schema`
-- Every query logged with SQL, answer, and token usage
-- Result-based eval suite
+## AI Engineering Skills Applied
 
-### Insurance Assistant
-- **RAG chatbot** — hybrid BM25 + MMR vector search over uploaded home insurance PDFs
-- **Streaming responses** — tokens streamed via SSE as they're generated
-- **JWT auth** — register/login, users persisted in PostgreSQL
-- **4-step certification form** — Property → Coverage → Risk → Owner Info
-- **Autofill from chat** — Gemini extracts form field values from your conversation
-- **PDF certificate** — generated with ReportLab and downloaded in the browser
+- **RAG** — chunk, embed, retrieve, augment
+- **Hybrid search** — BM25 keyword + MMR semantic, merged and deduplicated
+- **Streaming** — SSE token streaming from LLM to browser
+- **Tool use / agents** — Gemini function calling for text-to-SQL
+- **LLM data extraction** — structured form autofill from unstructured chat
+- **Prompt engineering** — focused system prompts, plain-text output control
+- **Evals** — result-based SQL correctness test suite
+
+---
 
 ## Project Structure
 
@@ -66,28 +75,31 @@ Returns an answer grounded in your uploaded policy documents, streamed token by 
 datasense/
 ├── main.py                  # FastAPI entry point
 ├── agent.py                 # Gemini tool-use agent (text-to-SQL)
+├── requirements.txt         # Pinned deps for Render
+├── render.yaml              # Render deploy config
 ├── insurance/
-│   ├── auth.py              # JWT auth + PostgreSQL user store (connection pool)
+│   ├── auth.py              # JWT + PostgreSQL connection pool
+│   ├── store.py             # Sessions, messages, certs, activity logs
 │   ├── rag.py               # Hybrid retriever + streaming chat
-│   ├── certify.py           # Certification form schema + PDF generation
-│   ├── router.py            # FastAPI router (/insurance/*)
-│   ├── ingest.py            # PDF ingestion into ChromaDB
-│   └── docs/                # Home insurance PDFs
+│   ├── certify.py           # Form schema + autofill + PDF
+│   ├── router.py            # All /insurance/* endpoints
+│   ├── ingest.py            # PDF → chunks → ChromaDB
+│   └── docs/                # 4 home insurance PDFs
 ├── evals/
 │   └── run_evals.py         # SQL eval suite
-├── frontend/
-│   └── src/
-│       ├── App.jsx          # Tab nav (DataSense | Insurance)
-│       └── insurance/       # Insurance UI components
-└── pyproject.toml
+└── frontend/
+    └── src/
+        ├── App.jsx
+        └── insurance/       # Login, Chat, Certify, Admin components
 ```
 
-## Getting Started
+---
+
+## Run Locally
 
 **Prerequisites:** Python 3.12+, Docker, Node.js
 
 ```bash
-# Clone
 git clone https://github.com/ashishballa/Datasense.git
 cd Datasense
 
@@ -97,12 +109,11 @@ docker run -d --name datasense-db \
   -e POSTGRES_DB=datasense \
   -p 5432:5432 postgres:16
 
-# Environment variables
+# Set env vars
 cp .env.example .env
-# Add GOOGLE_API_KEY from https://aistudio.google.com/apikey
-# Add JWT_SECRET (any long random string)
+# Fill in GOOGLE_API_KEY, JWT_SECRET
 
-# Ingest insurance documents into ChromaDB
+# Ingest insurance PDFs (one-time)
 uv run python insurance/ingest.py
 
 # Start backend
@@ -112,11 +123,13 @@ uv run uvicorn main:app --reload
 cd frontend && npm install && npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:5173`
+
+---
 
 ## Phases
 
 - [x] Phase 1: LLM + tool use basics
 - [x] Phase 2: Text-to-SQL agent + FastAPI + React UI
-- [x] Phase 3: Insurance RAG chatbot + certification flow + JWT auth
-- [ ] Phase 4: Azure deploy + design doc + portfolio polish
+- [x] Phase 3: Insurance RAG chatbot + certification flow + deployment
+- [ ] Phase 4: Design doc + portfolio polish
