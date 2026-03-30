@@ -1,9 +1,9 @@
 # DataSense — Claude Code Instructions
 
 ## About this project
-Building DataSense: an agentic BI copilot that takes natural language queries,
-generates SQL, runs it against a database, and returns chart-ready results.
-Stack: Python + FastAPI + Google Gemini API + PostgreSQL + React.
+Building DataSense: a home insurance RAG chatbot + agentic BI copilot.
+Stack: Python + FastAPI + Google Gemini API + PostgreSQL + ChromaDB + LangChain + React + Vite.
+Deployed: Render (backend) + Vercel (frontend) + Supabase (PostgreSQL).
 Developer: Python beginner, strong React + Cloud background.
 
 ---
@@ -41,37 +41,62 @@ Developer: Python beginner, strong React + Cloud background.
 ### File structure
 ```
 datasense/
-├── main.py          # FastAPI app entry point
-├── agent.py         # Gemini tool-use agent logic
-├── tools.py         # Agent tools (sql runner, schema reader)
-├── db.py            # PostgreSQL connection + queries
-├── evals/           # Phase 3: eval scripts
-├── frontend/        # React app (Vite)
-└── CLAUDE.md        # This file
+├── main.py               # FastAPI entry point, mounts insurance router
+├── agent.py              # Gemini tool-use agent (text-to-SQL)
+├── requirements.txt      # Pinned deps for Render deployment
+├── render.yaml           # Render deploy config
+├── insurance/
+│   ├── auth.py           # JWT auth + PostgreSQL connection pool
+│   ├── store.py          # DB ops: sessions, messages, certificates, stats
+│   ├── rag.py            # Hybrid BM25+MMR search + streaming chat
+│   ├── certify.py        # 4-step form schema + autofill + PDF generation
+│   ├── router.py         # All /insurance/* endpoints
+│   ├── ingest.py         # PDF ingestion into ChromaDB (run once locally)
+│   └── docs/             # Home insurance PDFs
+├── evals/                # SQL eval suite
+├── frontend/             # React + Vite
+│   └── src/insurance/    # Insurance UI components
+└── CLAUDE.md
 ```
 
 ### Python style
-- Use `uv run` to execute scripts.
+- Use `uv run` to execute scripts locally.
 - Use `google-genai` SDK for all LLM calls.
 - Model: `gemini-2.5-flash` (free tier, never suggest paid models).
+- Embeddings: `models/gemini-embedding-001`.
 - Store secrets in environment variables, never in code.
 - Use `python-dotenv` for local `.env` files.
+- After adding a new package with `uv add`, regenerate `requirements.txt`:
+  `uv export --frozen --no-dev --no-emit-project -o requirements.txt`
 
 ### Gemini API usage — minimize tokens
 - Keep system prompts under 200 words.
 - For SQL generation tasks, use focused single-turn calls not multi-turn.
-- Cache repeated context where possible.
 - Never send entire database schemas — send only relevant table schemas.
 
 ### Database
-- PostgreSQL via Docker for local dev.
+- Local dev: PostgreSQL via Docker (`datasense-db` container).
+- Production: Supabase (connection pooler URL).
 - Connection string from `DATABASE_URL` env variable.
-- Use `psycopg2` for raw queries (simpler than an ORM for learning).
+- Use `psycopg2` for raw queries + `SimpleConnectionPool` for pooling.
+
+### ChromaDB
+- Stored in `insurance/chroma_db/` — committed to git for deployment.
+- Re-ingest only when adding new PDFs: `uv run python insurance/ingest.py`
+- Free tier limit: 1000 embed requests/day — ingest uses batching + backoff.
 
 ### Frontend
 - React + Vite (developer already knows React).
-- No UI framework — plain CSS or Tailwind only.
-- Fetch from FastAPI backend at `http://localhost:8000`.
+- No UI framework — plain CSS only.
+- Local: fetches from `http://localhost:8000`.
+- Production: fetches from `VITE_API_URL` env var (set in Vercel).
+
+### Deployment
+- Backend → Render (`render.yaml`), start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Frontend → Vercel, root dir: `frontend`, framework: vite
+- DB → Supabase, use Transaction pooler URL (not direct IPv6)
+- CORS: add Vercel URL to `ALLOWED_ORIGINS` in `main.py` and set `FRONTEND_URL` on Render
+- Render free tier sleeps after 15min — UptimeRobot pings every 5min to keep it awake
 
 ---
 
@@ -88,10 +113,8 @@ When I make a Python mistake, correct it and note the rule in one line.
 ## Phase tracker
 - [x] Phase 1: LLM + tool use basics
 - [x] Phase 2: Text-to-SQL agent + FastAPI + React UI
-- [ ] Phase 3: Evals dashboard + observability + Azure deploy
+- [x] Phase 3: Insurance RAG chatbot + certification flow + JWT auth + deployment
 - [ ] Phase 4: Design doc + portfolio polish
-
-Update the checkbox to [x] when I tell you a phase is done.
 
 ---
 
