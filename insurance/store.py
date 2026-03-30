@@ -94,6 +94,16 @@ def load_messages(session_id: str) -> list[dict]:
 
 # ── Activity logs ─────────────────────────────────────────────────────────────
 
+def get_failed_attempts(username: str, window_minutes: int) -> int:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*) FROM activity_logs
+            WHERE username = %s AND event = 'login_failed'
+            AND created_at >= NOW() - INTERVAL '%s minutes'
+        """, (username, window_minutes))
+        return cur.fetchone()[0]
+
 def log_event(event: str, username: str = None, detail: str = None):
     try:
         with get_conn() as conn:
