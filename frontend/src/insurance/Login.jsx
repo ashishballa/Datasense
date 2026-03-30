@@ -47,7 +47,7 @@ export default function Login({ onLogin }) {
   const passwordRules = PASSWORD_RULES.map(r => ({ ...r, pass: r.test(password) }))
   const passwordValid = passwordRules.every(r => r.pass)
   const canSubmit = !loading && username && password &&
-    (mode === 'login' || (passwordValid && usernameStatus === 'available'))
+    (mode === 'login' || (passwordValid && usernameStatus !== 'taken' && usernameStatus !== 'checking'))
 
   async function handleSubmit(e) {
     e.preventDefault()
