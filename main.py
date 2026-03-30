@@ -24,7 +24,8 @@ import os
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    os.getenv("FRONTEND_URL", ""),  # set to Vercel URL in production
+    "https://datasense-jade.vercel.app",
+    os.getenv("FRONTEND_URL", ""),  # override via env if URL changes
 ]
 app.add_middleware(
     CORSMiddleware,
