@@ -1,5 +1,6 @@
-"""PostgreSQL persistence for chat sessions, messages, and certificates."""
+"""PostgreSQL persistence for chat sessions, messages, certificates, and activity logs."""
 import json
+import psycopg2.extras
 from .auth import get_conn
 
 def init_tables():
@@ -31,6 +32,15 @@ def init_tables():
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS activity_logs (
+                    id         SERIAL PRIMARY KEY,
+                    username   TEXT,
+                    event      TEXT NOT NULL,
+                    detail     TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +62,6 @@ def touch_session(session_id: str):
 
 def get_user_sessions(username: str) -> list[dict]:
     with get_conn() as conn:
-        import psycopg2.extras
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             SELECT session_id, created_at, last_active,
@@ -76,13 +85,25 @@ def save_message(session_id: str, role: str, content: str):
 
 def load_messages(session_id: str) -> list[dict]:
     with get_conn() as conn:
-        import psycopg2.extras
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(
             "SELECT role, content FROM insurance_messages WHERE session_id = %s ORDER BY created_at",
             (session_id,)
         )
         return [dict(r) for r in cur.fetchall()]
+
+# ── Activity logs ─────────────────────────────────────────────────────────────
+
+def log_event(event: str, username: str = None, detail: str = None):
+    try:
+        with get_conn() as conn:
+            with conn:
+                conn.cursor().execute(
+                    "INSERT INTO activity_logs (username, event, detail) VALUES (%s, %s, %s)",
+                    (username, event, detail)
+                )
+    except Exception:
+        pass  # never let logging crash the main flow
 
 # ── Certificates ──────────────────────────────────────────────────────────────
 
@@ -98,7 +119,6 @@ def log_certificate(username: str, form_data: dict):
 
 def get_stats() -> dict:
     with get_conn() as conn:
-        import psycopg2.extras
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("SELECT COUNT(*) AS total FROM insurance_users")
         users = cur.fetchone()["total"]
@@ -128,8 +148,16 @@ def get_stats() -> dict:
             GROUP BY day ORDER BY day
         """)
         daily = [dict(r) for r in cur.fetchall()]
+        cur.execute("""
+            SELECT username, event, detail, created_at
+            FROM activity_logs
+            ORDER BY created_at DESC
+            LIMIT 50
+        """)
+        activity = [dict(r) for r in cur.fetchall()]
     return {
         "totals": {"users": users, "sessions": sessions, "messages": messages, "certificates": certs},
         "users": user_rows,
         "daily_questions": daily,
+        "activity": activity,
     }

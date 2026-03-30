@@ -19,6 +19,15 @@
 .adm-table th { text-align: left; padding: 8px 12px; color: #555; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #222; }
 .adm-table td { padding: 10px 12px; border-bottom: 1px solid #1a1a1a; color: #ccc; }
 .adm-table tr:hover td { background: #141414; }
+.adm-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.adm-refresh-hint { font-size: 0.7rem; color: #444; font-weight: normal; text-transform: none; letter-spacing: 0; margin-left: 8px; }
+.adm-feed { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+.adm-feed-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: #141414; border-radius: 6px; font-size: 0.82rem; }
+.adm-feed-badge { font-weight: 600; min-width: 110px; }
+.adm-feed-user { color: #888; min-width: 80px; }
+.adm-feed-detail { color: #555; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-feed-time { color: #444; font-size: 0.75rem; margin-left: auto; white-space: nowrap; }
+.adm-empty { color: #444; font-size: 0.85rem; padding: 12px 0; }
 
 /* ── Insurance layout ──*/
 .ins-app { display: flex; flex-direction: column; height: 100vh; }

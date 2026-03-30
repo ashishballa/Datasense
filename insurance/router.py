@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from .auth import register_user, authenticate_user, create_access_token, get_current_user
 from .rag import chat, chat_stream, clear_session
 from .certify import get_steps, autofill_from_chat, generate_certificate
-from .store import create_session, get_user_sessions, log_certificate, get_stats
+from .store import create_session, get_user_sessions, log_certificate, get_stats, log_event
 
 router = APIRouter(prefix="/insurance", tags=["insurance"])
 
@@ -19,13 +19,16 @@ class RegisterRequest(BaseModel):
 @router.post("/auth/register")
 def register(req: RegisterRequest):
     register_user(req.username, req.password)
+    log_event("register", req.username)
     return {"message": "User registered"}
 
 @router.post("/auth/login")
 def login(form: OAuth2PasswordRequestForm = Depends()):
     if not authenticate_user(form.username, form.password):
+        log_event("login_failed", form.username)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token(form.username)
+    log_event("login", form.username)
     return {"access_token": token, "token_type": "bearer"}
 
 # ── Chatbot ───────────────────────────────────────────────────────────────────
@@ -37,7 +40,8 @@ class ChatRequest(BaseModel):
 @router.post("/chat/stream")
 def insurance_chat_stream(req: ChatRequest, username: str = Depends(get_current_user)):
     session_id = req.session_id or str(uuid.uuid4())
-    create_session(session_id, username)  # no-op if already exists
+    create_session(session_id, username)
+    log_event("chat", username, req.message[:100])
     def event_stream():
         for token in chat_stream(req.message, session_id):
             yield f"data: {token}\n\n"
@@ -74,6 +78,7 @@ class CertifyRequest(BaseModel):
 @router.post("/certify/generate")
 def generate_cert(req: CertifyRequest, username: str = Depends(get_current_user)):
     log_certificate(username, req.form_data)
+    log_event("certificate_generated", username, req.form_data.get("address", ""))
     pdf_bytes = generate_certificate(req.form_data, username)
     return Response(
         content=pdf_bytes,
