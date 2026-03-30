@@ -4,13 +4,22 @@ function authHeaders(token) {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 }
 
+async function parseError(res, fallback) {
+  try {
+    const body = await res.json()
+    return body.detail || fallback
+  } catch {
+    return fallback
+  }
+}
+
 export async function register(username, password) {
   const res = await fetch(`${BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   })
-  if (!res.ok) throw new Error((await res.json()).detail)
+  if (!res.ok) throw new Error(await parseError(res, 'Registration failed'))
   return res.json()
 }
 
@@ -20,8 +29,8 @@ export async function login(username, password) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ username, password }),
   })
-  if (!res.ok) throw new Error((await res.json()).detail)
-  return res.json() // { access_token, token_type }
+  if (!res.ok) throw new Error(await parseError(res, 'Invalid credentials'))
+  return res.json()
 }
 
 export async function sendChatStream(token, message, sessionId, onToken) {
