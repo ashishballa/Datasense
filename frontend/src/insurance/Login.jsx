@@ -58,7 +58,7 @@ export default function Login({ onLogin }) {
     try {
       if (mode === 'register') await register(username, password)
       const data = await login(username, password)
-      onLogin(data.access_token, username)
+      onLogin(data.access_token, username, data.role || 'user')
     } catch (err) {
       setError(err.message)
     } finally {

@@ -125,6 +125,23 @@ def log_certificate(username: str, form_data: dict):
                 (username, json.dumps(form_data))
             )
 
+# ── Admin user management ─────────────────────────────────────────────────────
+
+def get_all_users() -> list[dict]:
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT u.username, u.role, u.created_at,
+                   COUNT(DISTINCT s.session_id) AS sessions,
+                   COUNT(m.id) FILTER (WHERE m.role = 'user') AS questions
+            FROM insurance_users u
+            LEFT JOIN insurance_sessions s ON s.username = u.username
+            LEFT JOIN insurance_messages m ON m.session_id = s.session_id
+            GROUP BY u.username, u.role, u.created_at
+            ORDER BY u.created_at DESC
+        """)
+        return [dict(r) for r in cur.fetchall()]
+
 # ── Admin stats ───────────────────────────────────────────────────────────────
 
 def get_stats() -> dict:

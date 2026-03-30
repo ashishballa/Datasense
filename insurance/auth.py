@@ -36,12 +36,18 @@ def get_conn():
 def init_users_table():
     with get_conn() as conn:
         with conn:
-            conn.cursor().execute("""
+            cur = conn.cursor()
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS insurance_users (
                     username TEXT PRIMARY KEY,
                     password_hash TEXT NOT NULL,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
+            """)
+            # idempotent migration — adds role column if it doesn't exist yet
+            cur.execute("""
+                ALTER TABLE insurance_users
+                ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
             """)
 
 def validate_password(password: str):
@@ -86,20 +92,45 @@ def authenticate_user(username: str, password: str) -> bool:
         row = cur.fetchone()
     return row is not None and pwd_context.verify(password, row["password_hash"])
 
-def create_access_token(username: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+def get_user_role(username: str) -> str:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT role FROM insurance_users WHERE username = %s", (username,))
+        row = cur.fetchone()
+    return row[0] if row else "user"
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+def set_user_role(username: str, role: str):
+    if role not in ("user", "admin"):
+        raise HTTPException(status_code=400, detail="Role must be 'user' or 'admin'")
+    with get_conn() as conn:
+        with conn:
+            cur = conn.cursor()
+            cur.execute("UPDATE insurance_users SET role = %s WHERE username = %s", (role, username))
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="User not found")
+
+def create_access_token(username: str, role: str = "user") -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode({"sub": username, "role": role, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+def _decode_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if username is None:
+        if payload.get("sub") is None:
             raise ValueError
-        return username
+        return payload
     except (JWTError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+    return _decode_token(token)["sub"]
+
+def require_admin(token: str = Depends(oauth2_scheme)) -> str:
+    payload = _decode_token(token)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return payload["sub"]

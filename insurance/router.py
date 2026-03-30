@@ -5,10 +5,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from .auth import register_user, authenticate_user, create_access_token, get_current_user, username_exists
+from .auth import register_user, authenticate_user, create_access_token, get_current_user, require_admin, username_exists, get_user_role, set_user_role
 from .rag import chat, chat_stream, clear_session
 from .certify import get_steps, autofill_from_chat, generate_certificate
-from .store import create_session, get_user_sessions, log_certificate, get_stats, log_event, get_failed_attempts
+from .store import create_session, get_user_sessions, log_certificate, get_stats, log_event, get_failed_attempts, get_all_users
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/insurance", tags=["insurance"])
@@ -35,6 +35,10 @@ class RegisterRequest(BaseModel):
         if len(v) > 128:
             raise ValueError("Password too long (max 128 chars)")
         return v
+
+@router.get("/auth/me")
+def me(username: str = Depends(get_current_user)):
+    return {"username": username, "role": get_user_role(username)}
 
 @router.get("/auth/check-username/{username}")
 def check_username(username: str):
@@ -65,9 +69,10 @@ def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
             status_code=401,
             detail=f"Invalid credentials. {remaining} attempt(s) remaining before lockout."
         )
-    token = create_access_token(form.username)
+    role = get_user_role(form.username)
+    token = create_access_token(form.username, role)
     log_event("login", form.username)
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "role": role}
 
 # ── Chatbot ───────────────────────────────────────────────────────────────────
 
@@ -142,5 +147,18 @@ def generate_cert(request: Request, req: CertifyRequest, username: str = Depends
 # ── Admin ─────────────────────────────────────────────────────────────────────
 
 @router.get("/admin/stats")
-def admin_stats(username: str = Depends(get_current_user)):
+def admin_stats(username: str = Depends(require_admin)):
     return get_stats()
+
+class RoleRequest(BaseModel):
+    role: str
+
+@router.get("/admin/users")
+def list_users(username: str = Depends(require_admin)):
+    return {"users": get_all_users()}
+
+@router.put("/admin/users/{target}/role")
+def update_role(target: str, req: RoleRequest, username: str = Depends(require_admin)):
+    set_user_role(target, req.role)
+    log_event("role_changed", username, f"{target} -> {req.role}")
+    return {"message": f"{target} is now {req.role}"}
