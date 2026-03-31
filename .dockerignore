@@ -1,0 +1,12 @@
+.env
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.git
+.gitignore
+frontend/node_modules
+frontend/dist
+evals
+*.md
