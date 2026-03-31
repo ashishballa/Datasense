@@ -2,8 +2,8 @@
 
 ## About this project
 Building DataSense: a home insurance RAG chatbot + agentic BI copilot.
-Stack: Python + FastAPI + Google Gemini API + PostgreSQL + ChromaDB + LangChain + React + Vite.
-Deployed: Render (backend) + Vercel (frontend) + Supabase (PostgreSQL).
+Stack: Python + FastAPI + Google Gemini API + PostgreSQL + ChromaDB + LangChain + React + Vite + Docker.
+Deployed: Render Docker (backend) + Vercel (frontend) + Supabase (PostgreSQL).
 Developer: Python beginner, strong React + Cloud background.
 
 ---
@@ -43,19 +43,22 @@ Developer: Python beginner, strong React + Cloud background.
 datasense/
 ├── main.py               # FastAPI entry point, mounts insurance router
 ├── agent.py              # Gemini tool-use agent (text-to-SQL)
-├── requirements.txt      # Pinned deps for Render deployment
-├── render.yaml           # Render deploy config
+├── Dockerfile            # Production container (python:3.12-slim + uv)
+├── docker-compose.yml    # Local dev: API + PostgreSQL with healthcheck
+├── .dockerignore         # Excludes .env, .venv, __pycache__, frontend/node_modules
+├── requirements.txt      # Pinned deps fallback (pip)
+├── render.yaml           # Render deploy config (Docker runtime)
 ├── insurance/
-│   ├── auth.py           # JWT auth + PostgreSQL connection pool
-│   ├── store.py          # DB ops: sessions, messages, certificates, stats
+│   ├── auth.py           # JWT + RBAC (admin/user roles) + PostgreSQL pool
+│   ├── store.py          # DB ops: sessions, messages, certs, stats, user mgmt
 │   ├── rag.py            # Hybrid BM25+MMR search + streaming chat
 │   ├── certify.py        # 4-step form schema + autofill + PDF generation
-│   ├── router.py         # All /insurance/* endpoints
+│   ├── router.py         # All /insurance/* endpoints + rate limiting
 │   ├── ingest.py         # PDF ingestion into ChromaDB (run once locally)
 │   └── docs/             # Home insurance PDFs
 ├── evals/                # SQL eval suite
 ├── frontend/             # React + Vite
-│   └── src/insurance/    # Insurance UI components
+│   └── src/insurance/    # Login, Chat, Certify, Admin components
 └── CLAUDE.md
 ```
 
@@ -91,12 +94,27 @@ datasense/
 - Local: fetches from `http://localhost:8000`.
 - Production: fetches from `VITE_API_URL` env var (set in Vercel).
 
+### Docker
+- `Dockerfile` uses `python:3.12-slim`, installs uv, runs `uv sync --frozen --no-dev`
+- Start command: `sh -c "uv run uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"`
+- Local dev: `docker compose up --build` (spins up API + postgres, healthcheck on db)
+- `.dockerignore` excludes `.env`, `.venv`, `__pycache__`, `frontend/node_modules`, `evals`
+- After adding a package: `uv add <pkg>` then commit both `pyproject.toml` and `uv.lock`
+- Also regenerate `requirements.txt`: `uv export --frozen --no-dev --no-emit-project -o requirements.txt`
+
 ### Deployment
-- Backend → Render (`render.yaml`), start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Backend → Render (`render.yaml`), runtime: docker, reads `Dockerfile`
 - Frontend → Vercel, root dir: `frontend`, framework: vite
 - DB → Supabase, use Transaction pooler URL (not direct IPv6)
 - CORS: add Vercel URL to `ALLOWED_ORIGINS` in `main.py` and set `FRONTEND_URL` on Render
 - Render free tier sleeps after 15min — UptimeRobot pings every 5min to keep it awake
+
+### Auth / RBAC
+- Roles: `user` (default) and `admin` — stored in `insurance_users.role` column
+- Role embedded in JWT at login — no DB hit on protected requests
+- `require_admin` dependency in `auth.py` — use on any admin-only endpoint
+- To promote a user: `UPDATE insurance_users SET role = 'admin' WHERE username = '...'`
+- Admin endpoints: `GET /admin/stats`, `GET /admin/users`, `PUT /admin/users/{username}/role`
 
 ---
 
@@ -114,6 +132,9 @@ When I make a Python mistake, correct it and note the rule in one line.
 - [x] Phase 1: LLM + tool use basics
 - [x] Phase 2: Text-to-SQL agent + FastAPI + React UI
 - [x] Phase 3: Insurance RAG chatbot + certification flow + JWT auth + deployment
+- [x] Phase 3+: Security hardening (rate limiting, brute-force, headers, input validation)
+- [x] Phase 3+: RBAC (admin/user roles, admin dashboard, user management)
+- [x] Phase 3+: Docker + Docker Compose, Render Docker runtime
 - [ ] Phase 4: Design doc + portfolio polish
 
 ---

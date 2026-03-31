@@ -13,7 +13,8 @@ A production RAG chatbot built on real home insurance policy documents. Chat wit
 - **Certification form** — 4-step dynamic form: Property → Coverage → Risk → Owner Info.
 - **PDF certificate** — Generate and download a formatted certificate from completed form data.
 - **Admin dashboard** — Live activity feed, stat cards, 7-day chart, user table. Auto-refreshes every 30s.
-- **Auth** — JWT login/register, users persisted in PostgreSQL.
+- **Auth** — JWT login/register with password strength validation, real-time username availability check, brute-force lockout after 5 failed attempts.
+- **Role-based access** — `admin` and `user` roles. Admin dashboard and user management gated to admins only. Roles embedded in JWT, assignable via admin UI.
 
 ---
 
@@ -26,8 +27,9 @@ A production RAG chatbot built on real home insurance policy documents. Chat wit
 └──────────────────────┬──────────────────────┘
                        │ /insurance/*
 ┌──────────────────────▼──────────────────────┐
-│           FastAPI backend (Render)          │
+│      FastAPI backend (Render — Docker)      │
 │  auth.py  rag.py  certify.py  store.py      │
+│  Rate limiting (slowapi) + security headers │
 └──────┬───────────────────────┬──────────────┘
        │                       │
 ┌──────▼──────┐    ┌───────────▼────────────┐
@@ -50,10 +52,12 @@ A production RAG chatbot built on real home insurance policy documents. Chat wit
 | Search | Hybrid BM25 + MMR vector search |
 | Backend | Python + FastAPI |
 | Database | PostgreSQL (Supabase) |
-| Auth | JWT (python-jose) + sha256_crypt |
+| Auth | JWT (python-jose) + sha256_crypt + RBAC |
+| Rate limiting | slowapi |
 | PDF | ReportLab |
-| Frontend | React + Vite |
-| Deployment | Render (API) + Vercel (UI) |
+| Frontend | React + Vite (no UI framework) |
+| Containerisation | Docker + Docker Compose |
+| Deployment | Render (Docker) + Vercel (UI) |
 
 ---
 
@@ -69,17 +73,31 @@ A production RAG chatbot built on real home insurance policy documents. Chat wit
 
 ---
 
+## Security
+
+- JWT authentication (8-hour expiry)
+- Role-based access control (`user` / `admin`) embedded in JWT
+- Brute-force protection — account locked after 5 failed login attempts (15-min window)
+- Rate limiting on all auth and chat endpoints (slowapi)
+- Input validation — password rules, username format, message length caps
+- Security headers — `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`
+- CORS restricted to known origins
+
+---
+
 ## Project Structure
 
 ```
 datasense/
 ├── main.py                  # FastAPI entry point
 ├── agent.py                 # Gemini tool-use agent (text-to-SQL)
-├── requirements.txt         # Pinned deps for Render
-├── render.yaml              # Render deploy config
+├── Dockerfile               # Production container
+├── docker-compose.yml       # Local dev (API + PostgreSQL)
+├── render.yaml              # Render deploy config (Docker runtime)
+├── requirements.txt         # Pinned deps fallback
 ├── insurance/
-│   ├── auth.py              # JWT + PostgreSQL connection pool
-│   ├── store.py             # Sessions, messages, certs, activity logs
+│   ├── auth.py              # JWT + RBAC + PostgreSQL connection pool
+│   ├── store.py             # Sessions, messages, certs, activity logs, user management
 │   ├── rag.py               # Hybrid retriever + streaming chat
 │   ├── certify.py           # Form schema + autofill + PDF
 │   ├── router.py            # All /insurance/* endpoints
@@ -97,33 +115,55 @@ datasense/
 
 ## Run Locally
 
-**Prerequisites:** Python 3.12+, Docker, Node.js
+**Option A — Docker Compose (recommended)**
 
 ```bash
 git clone https://github.com/ashishballa/Datasense.git
 cd Datasense
 
+# Add your API key and JWT secret
+cp .env.example .env  # fill in GOOGLE_API_KEY, JWT_SECRET
+
+docker compose up --build
+```
+
+Backend at `http://localhost:8000`. PostgreSQL managed automatically.
+
+**Option B — uv (faster iteration)**
+
+```bash
 # Start PostgreSQL
 docker run -d --name datasense-db \
   -e POSTGRES_PASSWORD=password \
   -e POSTGRES_DB=datasense \
   -p 5432:5432 postgres:16
 
-# Set env vars
-cp .env.example .env
-# Fill in GOOGLE_API_KEY, JWT_SECRET
-
 # Ingest insurance PDFs (one-time)
 uv run python insurance/ingest.py
 
 # Start backend
 uv run uvicorn main:app --reload
+```
 
-# Start frontend
+**Frontend (both options)**
+
+```bash
 cd frontend && npm install && npm run dev
 ```
 
 Open `http://localhost:5173`
+
+---
+
+## Promote a user to admin
+
+Run in Supabase SQL editor (or any psql session):
+
+```sql
+UPDATE insurance_users SET role = 'admin' WHERE username = 'your-username';
+```
+
+Sign out and back in — the Admin button will appear.
 
 ---
 
@@ -132,4 +172,5 @@ Open `http://localhost:5173`
 - [x] Phase 1: LLM + tool use basics
 - [x] Phase 2: Text-to-SQL agent + FastAPI + React UI
 - [x] Phase 3: Insurance RAG chatbot + certification flow + deployment
+- [x] Phase 3+: Security hardening, RBAC, Docker, admin dashboard
 - [ ] Phase 4: Design doc + portfolio polish
