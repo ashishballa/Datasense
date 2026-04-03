@@ -60,7 +60,7 @@ export default function Chat({ token, onHistoryChange }) {
             }} />
           </div>
         ))}
-        {loading && (
+        {loading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="ins-msg ins-msg-assistant">
             <span className="ins-msg-label">Assistant</span>
             <p className="ins-typing">Thinking…</p>

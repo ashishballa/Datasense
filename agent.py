@@ -1,10 +1,10 @@
 import os
+import json
 from decimal import Decimal
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+from groq import Groq
 
 load_dotenv()
 
@@ -77,7 +77,6 @@ def setup_db():
 
 def get_schema(conn) -> str:
     cur = conn.cursor()
-    # Get all user tables (excludes postgres internal tables)
     cur.execute("""
         SELECT table_name, column_name, data_type
         FROM information_schema.columns
@@ -93,57 +92,36 @@ def get_schema(conn) -> str:
     return "\n".join(f"{table}({', '.join(cols)})" for table, cols in schema.items())
 
 def run_sql(conn, query: str) -> list[dict]:
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)  # returns dicts, like sqlite3.Row
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(query)
     return [{k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()} for row in cur.fetchall()]
-
-# ── Gemini tool definition ────────────────────────────────────────────────────
-
-tools = [
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name="run_sql",
-            description="Runs a SQL query against the sales database and returns the results.",
-            parameters=types.Schema(
-                type="OBJECT",
-                properties={
-                    "query": types.Schema(type="STRING", description="A valid SQLite SELECT query")
-                },
-                required=["query"]
-            )
-        )
-    ])
-]
 
 # ── Agent loop ────────────────────────────────────────────────────────────────
 
 def ask(question: str, conn) -> dict:
-    client = genai.Client()
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
     schema = get_schema(conn)
-    system_prompt = f"""You are a data analyst. When asked a question, call run_sql with a PostgreSQL query.
+
+    # Turn 1: generate SQL as plain text
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": f"""You are a data analyst. Output ONLY a valid PostgreSQL SELECT query with no explanation, no markdown, no code fences.
 Database schema:
 {schema}
-Return only SELECT queries. Never modify data."""
-
-    # Turn 1: Gemini decides to call run_sql
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=question,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            tools=tools
-        )
+Never modify data."""},
+            {"role": "user", "content": question},
+        ],
     )
 
-    part = response.candidates[0].content.parts[0]
-    if not part.function_call:  # Gemini answered in text — question isn't data-related
-        msg = "I can only answer questions about the data. Try asking about orders, customers, or products."
+    query = response.choices[0].message.content.strip().strip("`").strip()
+    if not query.upper().startswith("SELECT"):
+        error_msg = "I can only answer questions about the data. Try asking about orders, customers, or products."
         conn.cursor().execute(
-            "INSERT INTO query_logs (question, error) VALUES (%s, %s)", (question, msg)
+            "INSERT INTO query_logs (question, error) VALUES (%s, %s)", (question, error_msg)
         )
-        return {"error": msg}
+        return {"error": error_msg}
 
-    query = part.function_call.args["query"]
     print(f"Generated SQL:\n  {query}\n")
 
     try:
@@ -152,39 +130,30 @@ Return only SELECT queries. Never modify data."""
         return {"error": f"SQL error: {e}", "sql": query}
     print(f"Query results: {rows}\n")
 
-    # Turn 2: Send results back, get plain English answer
-    response2 = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[
-            types.Content(role="user",  parts=[types.Part(text=question)]),
-            types.Content(role="model", parts=[types.Part(function_call=part.function_call)]),
-            types.Content(role="user",  parts=[
-                types.Part(function_response=types.FunctionResponse(
-                    name="run_sql",
-                    response={"result": rows}
-                ))
-            ])
+    # Turn 2: plain English answer
+    response2 = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": "You are a helpful data analyst. Answer the user's question in one concise sentence using the data provided."},
+            {"role": "user", "content": f"Question: {question}\nData: {json.dumps(rows)}"},
         ],
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            tools=tools
-        )
     )
 
     tokens = {
-        "turn1": response.usage_metadata.total_token_count,
-        "turn2": response2.usage_metadata.total_token_count,
-        "total": response.usage_metadata.total_token_count + response2.usage_metadata.total_token_count,
+        "turn1": response.usage.total_tokens,
+        "turn2": response2.usage.total_tokens,
+        "total": response.usage.total_tokens + response2.usage.total_tokens,
     }
     print(f"Tokens — turn1: {tokens['turn1']}, turn2: {tokens['turn2']}, total: {tokens['total']}")
 
+    answer = response2.choices[0].message.content
     conn.cursor().execute(
         """INSERT INTO query_logs (question, sql, answer, tokens_turn1, tokens_turn2, tokens_total)
            VALUES (%s, %s, %s, %s, %s, %s)""",
-        (question, query, response2.text, tokens["turn1"], tokens["turn2"], tokens["total"])
+        (question, query, answer, tokens["turn1"], tokens["turn2"], tokens["total"])
     )
 
-    return {"sql": query, "rows": rows, "answer": response2.text, "tokens": tokens}
+    return {"sql": query, "rows": rows, "answer": answer, "tokens": tokens}
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 

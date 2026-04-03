@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_groq import ChatGroq
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -17,9 +18,9 @@ _llm = None
 def get_llm():
     global _llm
     if _llm is None:
-        _llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
+        _llm = ChatGroq(
+            model="llama-3.1-8b-instant",
+            groq_api_key=os.getenv("GROQ_API_KEY"),
             temperature=0.2,
         )
     return _llm
@@ -51,7 +52,6 @@ def hybrid_search(question: str) -> list[Document]:
     bm25, vector = get_retriever()
     bm25_docs = bm25.invoke(question)
     vector_docs = vector.invoke(question)
-    # merge, deduplicate by content, keep up to 6 unique chunks
     seen, merged = set(), []
     for doc in bm25_docs + vector_docs:
         key = doc.page_content[:120]
@@ -60,6 +60,11 @@ def hybrid_search(question: str) -> list[Document]:
             merged.append(doc)
         if len(merged) == 6:
             break
+    print(f"\n--- Retrieved chunks for: {question!r} ---")
+    for i, doc in enumerate(merged):
+        src = doc.metadata.get("source", "unknown")
+        print(f"[{i+1}] {src} | {doc.page_content[:120].strip()!r}")
+    print("---\n")
     return merged
 
 from .store import save_message, load_messages, touch_session
@@ -80,9 +85,9 @@ def chat(question: str, session_id: str) -> dict:
     messages = [
         SystemMessage(content=(
             "You are a helpful home insurance assistant. "
-            "Use the policy documents below when relevant, but also draw on your general knowledge "
-            "to answer home ownership, real estate, and insurance questions. "
-            "Be concise and factual. Use plain text — no markdown asterisks.\n\n"
+            "Answer in 2-4 sentences max. Only use a list if the question explicitly asks for multiple items. "
+            "Never fabricate specific numbers, dates, or statistics — if the context doesn't contain them, say so. "
+            "Use plain text only, no markdown, no asterisks.\n\n"
             f"Relevant policy context:\n{context}"
         ))
     ]
@@ -113,9 +118,9 @@ def chat_stream(question: str, session_id: str):
     messages = [
         SystemMessage(content=(
             "You are a helpful home insurance assistant. "
-            "Use the policy documents below when relevant, but also draw on your general knowledge "
-            "to answer home ownership, real estate, and insurance questions. "
-            "Be concise and factual. Use plain text — no markdown asterisks.\n\n"
+            "Answer in 2-4 sentences max. Only use a list if the question explicitly asks for multiple items. "
+            "Never fabricate specific numbers, dates, or statistics — if the context doesn't contain them, say so. "
+            "Use plain text only, no markdown, no asterisks.\n\n"
             f"Relevant policy context:\n{context}"
         ))
     ]
